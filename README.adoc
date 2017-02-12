@@ -1,0 +1,62 @@
+
+== Test runner for Nim
+
+image:https://api.travis-ci.org/FedericoCeratto/nim-testrunner.svg?branch=master[TravisCI]
+
+Welcome to Nim test runner.
+This tool runs the Nim compiler against a set of test files.
+It supports globbing and can run tests automatically when source files are changed.
+
+NOTE: File change monitoring works only on Linux
+
+.Syntax:
+  testurunner ['test filename globbing'...] [-m [:'monitored filename globbing']] [ -- compiler flags]
+  testrunner 'tests/**/*.nim'
+  testrunner -m
+  testrunner mytest.nim 'tests/*.nim' -m:'**/*.nim' -d -- -d:ssl
+  testrunner (-h | --help)
+
+.Options:
+  -h --help       show help
+  -d --debug      debug mode
+  -m --monitor    without any argument, monitor **/*.nim
+  -m:'<glob>'     monitor globbing. Remember the colon ":"
+  --basedir <dir> basedir
+  -c --conf       config file path
+  --nocolor       disable color and set NIMTEST_NO_COLOR=1
+
+Protect globbings with single quotes.
+
+Double asterisk matches nested subdirectories.
+E.g. `'tests/\**/*.nim'` will match Nim files under tests/ and any subdirectory.
+
+Anything after "--" will be used as a compiler option for Nim.
+
+If no test globs are passed, the following will be used:
+  `test_\*.nim test/*.nim tests/*.nim`
+
+Testrunner will also parse .testrunner.conf if available, unless
+a different config file is specified.
+
+
+=== Install
+
+[source,bash]
+----
+nimble install testrunner
+----
+
+=== Output examples
+
+.Success
+image::example_success.gif[Success]
+
+'''
+
+.Failure
+image::example_fail.gif[Success]
+
+'''
+
+Contributions are welcome.
+
