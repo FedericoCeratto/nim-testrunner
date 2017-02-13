@@ -4,15 +4,18 @@
 image:https://api.travis-ci.org/FedericoCeratto/nim-testrunner.svg?branch=master[TravisCI]
 
 Welcome to Nim test runner.
-This tool runs the Nim compiler against a set of test files.
+This tool runs the Nim compiler against a set of source files.
+It's meant to compile and run unittest files but it can also be used to compile other sources.
+
 It supports globbing and can run tests automatically when source files are changed.
 
-NOTE: File change monitoring works only on Linux
+NOTE: File change monitoring and desktop notifications works only on Linux
 
 .Syntax:
   testurunner ['test filename globbing'...] [-m [:'monitored filename globbing']] [ -- compiler flags]
   testrunner 'tests/**/*.nim'
   testrunner -m
+  testrunner -m:'*.nim' -- -p:.
   testrunner mytest.nim 'tests/*.nim' -m:'**/*.nim' -d -- -d:ssl
   testrunner (-h | --help)
 
@@ -24,6 +27,8 @@ NOTE: File change monitoring works only on Linux
   --basedir <dir> basedir
   -c --conf       config file path
   --nocolor       disable color and set NIMTEST_NO_COLOR=1
+  -o --norun      do not run test files, run "nim c" only
+  -q --nonotify   do not send desktop notifications (enabled only with -m on Linux)
 
 Protect globbings with single quotes.
 

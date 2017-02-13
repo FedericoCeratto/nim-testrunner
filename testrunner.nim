@@ -19,6 +19,7 @@ from globbing import match_filename
 
 when defined(linux):
   from filemonitor import monitor_files
+  import libnotify
 
 const
   default_conf_fname = ".testrunner.conf"
@@ -36,9 +37,16 @@ type
     basedir, conf_fname: string
     fn_matchers: seq[string]
     monitor_fn_matchers: seq[string]
-    debug_mode: bool
-    nocolor: bool
+    debug_mode, nocolor, norun, notify: bool
     compiler_args: string
+
+  Summary = ref object of RootObj
+    success_cnt, fail_cnt: int
+
+  Notifier = object
+    enabled: bool
+    when defined(linux):
+      client: NotifyClient
 
 proc print_help() =
   echo """Welcome to Nim test runner.
@@ -59,6 +67,8 @@ Options:
   -m:'<glob>'     monitor globbing. Remember the colon ":"
   --basedir <dir> basedir
   -c --conf       config file path
+  -o --norun      do not run test files, run "nim c" only
+  -q --nonotify   do not send desktop notifications (enabled only with -m on Linux)
 
 Protect globbings with single quotes.
 Double asterisk "**" matches nested subdirectories.
@@ -79,6 +89,8 @@ proc parse_cli_options(): Conf =
     monitor_fn_matchers: @[],
     compiler_args: "",
     nocolor: false,
+    norun: false,
+    notify: true,
   )
 
   var p = initOptParser()
@@ -109,6 +121,12 @@ proc parse_cli_options(): Conf =
 
       of "nocolor", "b":
         result.nocolor = true
+
+      of "norun", "o":
+        result.norun = true
+
+      of "nonotify", "q":
+        result.notify = false
 
       of "basedir":
         result.basedir = p.val.expand_tilde()
@@ -174,55 +192,85 @@ proc parse_options_and_config_file(): Conf =
 proc scan_test_files(conf: Conf): seq[string] =
   ## Scan for test files
   result = @[]
+  echo "SCANNING", conf.fn_matchers
   for full_fname in conf.basedir.walkDirRec():
     let fname = full_fname[conf.basedir.len+1..^0]
     if match_filename(fname, conf.fn_matchers):
       result.add fname
 
-proc run_tests(conf: Conf) =
+proc newNotifier(): Notifier =
+  ## Init desktop notifier
+  result.enabled = false
+  when defined(linux):
+    result.client = newNotifyClient("testrunner")
+    result.client.set_app_name("testrunner")
+
+proc send(notifier: Notifier, msg: string) =
+  ## Send notification
+  when defined(linux):
+    notifier.client.send_new_notification("normal", msg, "STOCK_YES",
+      urgency=NotificationUrgency.Normal, timeout=2)
+
+proc run_tests(conf: Conf, old_summary: var Summary, notifier: Notifier) =
   ## Run tests
   let t0 = epochTime()
-  var success_cnt = 0
-  var fail_cnt = 0
+  var summary = Summary()
+  let run_flag =
+    if conf.norun: ""
+    else: "-r "
   for test_fn in conf.scan_test_files():
-    let cmd = "nim c $# -r $#" % [conf.compiler_args, test_fn]
+    let cmd = "nim c $# $#$#" % [conf.compiler_args, run_flag, test_fn]
     echo cmd
     if conf.nocolor:
       putEnv(nimtest_no_color_env_var, "1")
     let exit_code = execCmd(cmd)
     if exit_code == 0:
-      success_cnt.inc
+      summary.success_cnt.inc
     else:
-      fail_cnt.inc
+      summary.fail_cnt.inc
 
   let elapsed = formatFloat(epochTime() - t0, precision=2)
   let col = not conf.nocolor
 
   if col:
-    let symbol_color = if fail_cnt == 0: success_color else: fail_color
+    let symbol_color =
+      if summary.fail_cnt == 0: success_color
+      else: fail_color
+
     styledWriteLine(stdout,
       symbol_color, symbol & " ", resetStyle,
       "  Successful: ",
-      success_color, $success_cnt, resetStyle,
+      success_color, $summary.success_cnt, resetStyle,
       "  Failed: ",
-      fail_color, $fail_cnt, resetStyle,
+      fail_color, $summary.fail_cnt, resetStyle,
       "  Elapsed time: $#s" % elapsed,
     )
   else:
     echo "Successful: $#  Failed: $#  Elapsed time: $#s" % [
-      $success_cnt, $fail_cnt, elapsed]
+      $summary.success_cnt, $summary.fail_cnt, elapsed]
 
+  if notifier.enabled:
+    let fixed = old_summary.fail_cnt - summary.fail_cnt
+    if fixed > 0:
+      notifier.send("$# test fixed" % $fixed)
+    elif fixed < 0:
+      notifier.send("$# test broken" % $(fixed * -1))
 
+  old_summary = summary
 
 proc main() =
   let conf = parse_options_and_config_file()
-  conf.run_tests()
+  var notifier = newNotifier()
+  var summary = Summary()
+  run_tests(conf, summary, notifier)
   if conf.monitor_fn_matchers.len == 0:
     quit()
 
+  notifier.enabled = conf.notify
+
   when defined(linux):
     while monitor_files(conf.basedir, conf.monitor_fn_matchers, conf.debug_mode):
-      conf.run_tests()
+      run_tests(conf, summary, notifier)
 
 when isMainModule:
   main()
