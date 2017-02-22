@@ -35,6 +35,8 @@ Protect globbings with single quotes.
 Double asterisk matches nested subdirectories.
 E.g. `'tests/\**/*.nim'` will match Nim files under tests/ and any subdirectory.
 
+(you might have to protect the asterisks from your shell using single quotes)
+
 Anything after "--" will be used as a compiler option for Nim.
 
 If no test globs are passed, the following will be used:
