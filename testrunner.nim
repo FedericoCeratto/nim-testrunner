@@ -41,7 +41,7 @@ type
     compiler_args: string
 
   Summary = ref object of RootObj
-    success_cnt, fail_cnt: int
+    success_cnt, fail_cnt, fail_to_compile_cnt: int
 
   Notifier = object
     enabled: bool
@@ -192,7 +192,6 @@ proc parse_options_and_config_file(): Conf =
 proc scan_test_files(conf: Conf): seq[string] =
   ## Scan for test files
   result = @[]
-  echo "SCANNING", conf.fn_matchers
   for full_fname in conf.basedir.walkDirRec():
     let fname = full_fname[conf.basedir.len+1..^0]
     if match_filename(fname, conf.fn_matchers):
@@ -215,19 +214,32 @@ proc run_tests(conf: Conf, old_summary: var Summary, notifier: Notifier) =
   ## Run tests
   let t0 = epochTime()
   var summary = Summary()
-  let run_flag =
-    if conf.norun: ""
-    else: "-r "
-  for test_fn in conf.scan_test_files():
-    let cmd = "nim c $# $#$#" % [conf.compiler_args, run_flag, test_fn]
-    echo cmd
-    if conf.nocolor:
-      putEnv(nimtest_no_color_env_var, "1")
+  let test_fnames = conf.scan_test_files()
+  echo "Compiling $# test files..." % $test_fnames.len
+  var compiled_test_fnames: seq[string] = @[]
+  for test_fn in test_fnames:
+    let cmd = "nim c $# $#" % [conf.compiler_args, test_fn]
+    echo "Running: $#" % cmd
     let exit_code = execCmd(cmd)
     if exit_code == 0:
-      summary.success_cnt.inc
+      assert test_fn.endswith(".nim")
+      compiled_test_fnames.add test_fn[0..^5]
     else:
-      summary.fail_cnt.inc
+      summary.fail_to_compile_cnt.inc
+      echo "Failed to compile $#" % test_fn
+
+  if conf.norun == false:
+    echo "Running $# test files..." % $compiled_test_fnames.len
+    for fn in compiled_test_fnames:
+      let cmd = fn
+      echo "Running: $#" % cmd
+      if conf.nocolor:
+        putEnv(nimtest_no_color_env_var, "1")
+      let exit_code = execCmd(cmd)
+      if exit_code == 0:
+        summary.success_cnt.inc
+      else:
+        summary.fail_cnt.inc exit_code
 
   let elapsed = formatFloat(epochTime() - t0, precision=2)
   let col = not conf.nocolor
@@ -243,6 +255,8 @@ proc run_tests(conf: Conf, old_summary: var Summary, notifier: Notifier) =
       success_color, $summary.success_cnt, resetStyle,
       "  Failed: ",
       fail_color, $summary.fail_cnt, resetStyle,
+      "  Failed to compile: ",
+      fail_color, $summary.fail_to_compile_cnt, resetStyle,
       "  Elapsed time: $#s" % elapsed,
     )
   else:
