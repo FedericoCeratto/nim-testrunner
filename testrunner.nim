@@ -21,6 +21,8 @@ when defined(linux):
   from filemonitor import monitor_files
   import libnotify
 
+import junit
+
 const
   default_conf_fname = ".testrunner.conf"
   default_test_fn_matchers = @["test_*.nim", "test/*.nim", "tests/*.nim"]
@@ -39,6 +41,7 @@ type
     monitor_fn_matchers: seq[string]
     debug_mode, nocolor, norun, notify: bool
     compiler_args: string
+    junit_output_filename: string
 
   Summary = ref object of RootObj
     success_cnt, fail_cnt, fail_to_compile_cnt: int
@@ -54,7 +57,7 @@ This command runs the Nim compiler against a set of test files.
 It supports globbing and can run tests automatically when source files are changed.
 
 Syntax:
-  testurunner ['test filename globbing'...] [-m [:'monitored filename globbing']] [ -- compiler flags]
+  testrunner ['test filename globbing'...] [-m [:'monitored filename globbing']] [ -- compiler flags]
   testrunner 'tests/**/*.nim'
   testrunner -m
   testrunner mytest.nim 'tests/*.nim' -m:'**/*.nim' -d -- -d:ssl
@@ -69,6 +72,7 @@ Options:
   -c --conf       config file path
   -o --norun      do not run test files, run "nim c" only
   -q --nonotify   do not send desktop notifications (enabled only with -m on Linux)
+  --junit:<fname> write out JUnit summary (default: junit.xml)
 
 Protect globbings with single quotes.
 Double asterisk "**" matches nested subdirectories.
@@ -91,6 +95,7 @@ proc parse_cli_options(): Conf =
     nocolor: false,
     norun: false,
     notify: true,
+    junit_output_filename: "",
   )
 
   var p = initOptParser()
@@ -144,6 +149,12 @@ proc parse_cli_options(): Conf =
           echo "empty conf file"
           quit()
         result.conf_fname = p.val
+
+      of "junit":
+        result.junit_output_filename =
+          if p.val == "": "junit.xml"
+          else: p.val
+
 
 proc load_config_file(conf: var Conf) =
   ## Load config file
@@ -210,10 +221,31 @@ proc send(notifier: Notifier, msg: string) =
     notifier.client.send_new_notification("normal", msg, "STOCK_YES",
       urgency=NotificationUrgency.Normal, timeout=2)
 
+proc safe_write(path, contents: string) =
+  ## Create dirs, write file atomically
+  path.splitPath.head.createDir
+  let tmp_fname = path & ".tmp"
+  try:
+    tmp_fname.writeFile(contents)
+    moveFile(tmp_fname, path)
+  except Exception:
+    raise newException(Exception,
+      "Unable to save file $#: $#" % [path, getCurrentExceptionMsg()])
+
+proc generate_junit_summary(fname: string, testsuites: JUnitTestSuites) =
+  ## Generate and write out a test summary in JUnit format
+  ## One Nim unittest file maps into one JUnitTestSuite
+  include "junitxml.tmpl"
+  let contents = testsuites.generate_junit()
+  safe_write(fname, contents)
+
 proc run_tests(conf: Conf, old_summary: var Summary, notifier: Notifier) =
   ## Run tests
   let t0 = epochTime()
   var summary = Summary()
+  var testsuites = JUnitTestSuites()
+  testsuites.suites = @[]
+
   let test_fnames = conf.scan_test_files()
   echo "Compiling $# test files..." % $test_fnames.len
   var compiled_test_fnames: seq[string] = @[]
@@ -226,22 +258,46 @@ proc run_tests(conf: Conf, old_summary: var Summary, notifier: Notifier) =
       compiled_test_fnames.add test_fn[0..^5]
     else:
       summary.fail_to_compile_cnt.inc
+      testsuites.errors.inc
       echo "Failed to compile $#" % test_fn
 
   if conf.norun == false:
     echo "Running $# test files..." % $compiled_test_fnames.len
     for fn in compiled_test_fnames:
-      let cmd = fn
+      let cmd = "./" & fn
       echo "Running: $#" % cmd
       if conf.nocolor:
         putEnv(nimtest_no_color_env_var, "1")
+      let t1 = epochTime()
       let exit_code = execCmd(cmd)
+      let elapsed = epochTime() - t1
+      var ts = JUnitTestSuite(name:fn)
       if exit_code == 0:
         summary.success_cnt.inc
+        testsuites.tests.inc
+        ts.tests.inc
+        let tc = JUnitTestCase(name:fn, status:"PASSED",
+          assertions:1, time:elapsed)
+        ts.time = elapsed
+        ts.testcases = @[tc]
+
       else:
         summary.fail_cnt.inc exit_code
+        testsuites.failures.inc exit_code
+        ts.failures.inc exit_code
+        testsuites.tests.inc  # TODO: correct?
+        ts.tests.inc          # TODO: correct?
+        let tc = JUnitTestCase(name:fn, status:"FAILED",
+          assertions:1, time:elapsed)
+        ts.time = elapsed
+        ts.testcases = @[tc]
+
+      # TODO: more detailed report
+      testsuites.suites.add ts
+
 
   let elapsed = formatFloat(epochTime() - t0, precision=2)
+  testsuites.time = epochTime() - t0
   let col = not conf.nocolor
 
   if col:
@@ -271,6 +327,9 @@ proc run_tests(conf: Conf, old_summary: var Summary, notifier: Notifier) =
       notifier.send("$# test broken" % $(fixed * -1))
 
   old_summary = summary
+
+  if conf.junit_output_filename != "":
+    generate_junit_summary(conf.junit_output_filename, testsuites)
 
 proc main() =
   let conf = parse_options_and_config_file()

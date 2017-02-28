@@ -1,0 +1,71 @@
+#? stdtmpl | standard
+#proc generate_junit(testsuites: JUnitTestsuites): string =
+#  result = ""
+<?xml version="1.0" encoding="UTF-8"?>
+
+<testsuites
+    disabled="${testsuites.disabled}"
+    errors="${testsuites.errors}"
+    failures="${testsuites.failures}"
+    # if testsuites.name != nil:
+    name="${testsuites.name}"
+    # end
+    tests="${testsuites.tests}"
+    time="${testsuites.time}">
+  # var testsuite_cnt = 0
+  # for ts in testsuites.suites:
+  <testsuite
+    # if ts.name != nil:
+    name="${ts.name}"
+    # end
+    tests="${ts.tests}" disabled="${ts.disabled}" errors="${ts.errors}" failures="${ts.failures}"
+    # if ts.hostname != nil:
+    hostname="${ts.hostname}"
+    # end
+    id="${testsuite_cnt}"
+    # if ts.package != nil:
+    package="${}"
+    # end
+    skipped="${ts.skipped}" time="${ts.time}" timestamp="${ts.timestamp}">
+    # if false:
+    <properties>
+      <property name="" value=""/>
+    </properties>
+    # end
+    # for tc in ts.testcases:
+    <testcase
+        # doAssert tc.name != nil
+        name="${tc.name}"
+        assertions="${tc.assertions}"
+        # if tc.classname != nil:
+        classname="${tc.classname}"
+        # end
+        # doAssert tc.status != nil
+        status="${tc.status}" time="${tc.time}">
+      # if tc.skipped:
+      <skipped/>
+      # end
+      # if tc.error_message != nil:
+      <error message="${tc.error_message}" type="${}" ></error>
+      # end
+      # if tc.failure_message != nil:
+      <failure message="${tc.failure_message}" type="${}" ></failure>
+      # end
+      # if tc.system_out != nil:
+      <system-out></system-out>
+      # end
+      # if tc.system_err != nil:
+      <system-err></system-err>
+      # end
+    </testcase>
+    # end
+    # if ts.system_out != nil:
+    <system-out></system-out>
+    # end
+    # if ts.system_err != nil:
+    <system-err></system-err>
+    # end
+    # testsuite_cnt.inc
+  </testsuite>
+  # end
+</testsuites>

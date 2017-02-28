@@ -1,13 +1,15 @@
 
 == Test runner for Nim
 
-image:https://api.travis-ci.org/FedericoCeratto/nim-testrunner.svg?branch=master[TravisCI]
+image:https://circleci.com/gh/FedericoCeratto/nim-testrunner.svg?style=svg["CircleCI", link="https://circleci.com/gh/FedericoCeratto/nim-testrunner"]
 
 Welcome to Nim test runner.
 This tool runs the Nim compiler against a set of source files.
-It's meant to compile and run unittest files but it can also be used to compile other sources.
+It's meant to compile and run unittest files but it can also be used to compile other source files.
 
 It supports globbing and can run tests automatically when source files are changed.
+
+Generates reports in JUnit format.
 
 NOTE: File change monitoring and desktop notifications works only on Linux
 
@@ -29,6 +31,7 @@ NOTE: File change monitoring and desktop notifications works only on Linux
   --nocolor       disable color and set NIMTEST_NO_COLOR=1
   -o --norun      do not run test files, run "nim c" only
   -q --nonotify   do not send desktop notifications (enabled only with -m on Linux)
+  --junit:<fname> write out JUnit summary (default: junit.xml)
 
 Protect globbings with single quotes.
 
