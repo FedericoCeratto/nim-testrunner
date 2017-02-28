@@ -8,5 +8,8 @@ bin           = @["testrunner"]
 
 # Dependencies
 
-requires "nim >= 0.16.0"
+when defined(Linux):
+  requires "nim >= 0.16.0", "libnotify"
+else:
+  requires "nim >= 0.16.0"
 
