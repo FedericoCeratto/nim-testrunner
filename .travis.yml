@@ -1,19 +1,39 @@
-dist: trusty
-sudo: false
-group: beta
 language: c
-os:
-  - osx
 
-compiler:
-  - gcc
+cache: ccache
+cache:
+  directories:
+  - .cache
+
+matrix:
+  include:
+    - os: linux
+      compiler: gcc
+    - os: osx
+      compiler: clang
+
+  fast_finish: true
+
+addons: # This will only be executed on Linux
+  apt:
+    packages:
+      - libfswatch11
 
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install nim ; fi
+  # If you want to install an OSX Homebrew dependency
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update          ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install fswatch; fi
+
+install:
+  - export CHOOSENIM_NO_ANALYTICS=1
+  - curl https://nim-lang.org/choosenim/init.sh -sSf > init.sh
+  - sh init.sh -y
+  - export PATH=~/.nimble/bin:$PATH
+  - echo "export PATH=~/.nimble/bin:$PATH" >> ~/.profile
+  - choosenim stable
 
 script:
-  - nim c testrunner.nim
+  - nim c -d:release testrunner.nim
   - ./testrunner -d tests/test_glob.nim -- -p:.
 
 branches:
