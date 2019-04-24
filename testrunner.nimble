@@ -9,7 +9,7 @@ bin           = @["testrunner"]
 # Dependencies
 
 when defined(Linux):
-  requires "nim >= 0.16.0", "libnotify"
+  requires "nim >= 0.16.0", "libnotify", "fswatch"
 else:
   requires "nim >= 0.16.0"
 

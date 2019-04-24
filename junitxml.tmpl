@@ -7,26 +7,26 @@
     disabled="${testsuites.disabled}"
     errors="${testsuites.errors}"
     failures="${testsuites.failures}"
-    # if testsuites.name != nil:
+    # if testsuites.name != "":
     name="${testsuites.name}"
     # end
     tests="${testsuites.tests}"
-    time="${testsuites.time}">
+    time="${testsuites.time.formatFloat(precision=3)}">
   # var testsuite_cnt = 0
   # for ts in testsuites.suites:
   <testsuite
-    # if ts.name != nil:
+    # if ts.name != "":
     name="${ts.name}"
     # end
     tests="${ts.tests}" disabled="${ts.disabled}" errors="${ts.errors}" failures="${ts.failures}"
-    # if ts.hostname != nil:
+    # if ts.hostname != "":
     hostname="${ts.hostname}"
     # end
     id="${testsuite_cnt}"
-    # if ts.package != nil:
+    # if ts.package != "":
     package="${}"
     # end
-    skipped="${ts.skipped}" time="${ts.time}" timestamp="${ts.timestamp}">
+    skipped="${ts.skipped}" time="${ts.time.formatFloat(precision=3)}" timestamp="${ts.timestamp}">
     # if false:
     <properties>
       <property name="" value=""/>
@@ -34,35 +34,35 @@
     # end
     # for tc in ts.testcases:
     <testcase
-        # doAssert tc.name != nil
+        # doAssert tc.name != ""
         name="${tc.name}"
         assertions="${tc.assertions}"
-        # if tc.classname != nil:
+        # if tc.classname != "":
         classname="${tc.classname}"
         # end
-        # doAssert tc.status != nil
-        status="${tc.status}" time="${tc.time}">
+        # doAssert tc.status != ""
+        status="${tc.status}" time="${tc.time.formatFloat(precision=3)}">
       # if tc.skipped:
       <skipped/>
       # end
-      # if tc.error_message != nil:
+      # if tc.error_message != "":
       <error message="${tc.error_message}" type="${}" ></error>
       # end
-      # if tc.failure_message != nil:
+      # if tc.failure_message != "":
       <failure message="${tc.failure_message}" type="${}" ></failure>
       # end
-      # if tc.system_out != nil:
+      # if tc.system_out != "":
       <system-out></system-out>
       # end
-      # if tc.system_err != nil:
+      # if tc.system_err != "":
       <system-err></system-err>
       # end
     </testcase>
     # end
-    # if ts.system_out != nil:
+    # if ts.system_out != "":
     <system-out></system-out>
     # end
-    # if ts.system_err != nil:
+    # if ts.system_err != "":
     <system-err></system-err>
     # end
     # testsuite_cnt.inc

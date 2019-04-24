@@ -2,6 +2,9 @@
 == Test runner for Nim
 
 image:https://circleci.com/gh/FedericoCeratto/nim-testrunner.svg?style=svg["CircleCI", link="https://circleci.com/gh/FedericoCeratto/nim-testrunner"]
+image:https://img.shields.io/badge/status-beta-orange.svg[badge]
+image:https://img.shields.io/github/tag/FedericoCeratto/nim-testrunner.svg[tags]
+image:https://img.shields.io/badge/License-GPL%20v3-blue.svg[License]
 
 Welcome to Nim test runner.
 This tool runs the Nim compiler against a set of source files.
@@ -54,6 +57,7 @@ a different config file is specified.
 [source,bash]
 ----
 nimble install testrunner
+sudo apt-get install libfswatch11
 ----
 
 === Output examples

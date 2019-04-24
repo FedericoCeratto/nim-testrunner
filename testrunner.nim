@@ -17,8 +17,11 @@ from times import epochTime
 
 from globbing import match_filename
 
+when not defined(nofswatch):
+  import times
+  import fswatch
+
 when defined(linux):
-  from filemonitor import monitor_files
   import libnotify
 
 import junit
@@ -39,7 +42,7 @@ type
     basedir, conf_fname: string
     fn_matchers: seq[string]
     monitor_fn_matchers: seq[string]
-    debug_mode, nocolor, norun, notify: bool
+    debug_mode, nocolor, norun, notify, skipfirst: bool
     compiler_args: string
     junit_output_filename: string
 
@@ -71,6 +74,7 @@ Options:
   --basedir <dir> basedir
   -c --conf       config file path
   -o --norun      do not run test files, run "nim c" only
+  -s --skipfirst  skip running tests when testrunner is started. Useful with -m
   -q --nonotify   do not send desktop notifications (enabled only with -m on Linux)
   --junit:<fname> write out JUnit summary (default: junit.xml)
 
@@ -95,6 +99,7 @@ proc parse_cli_options(): Conf =
     nocolor: false,
     norun: false,
     notify: true,
+    skipfirst: false,
     junit_output_filename: "",
   )
 
@@ -143,6 +148,9 @@ proc parse_cli_options(): Conf =
 
         else:
           result.monitor_fn_matchers.add p.val
+
+      of "skipfirst", "s":
+        result.skipfirst = true
 
       of "conf", "c":
         if p.val.len == 0:
@@ -202,16 +210,15 @@ proc parse_options_and_config_file(): Conf =
 
 proc scan_test_files(conf: Conf): seq[string] =
   ## Scan for test files
-  result = @[]
   for full_fname in conf.basedir.walkDirRec():
-    let fname = full_fname[conf.basedir.len+1..^0]
+    let fname = full_fname[conf.basedir.len+1..^1]
     if match_filename(fname, conf.fn_matchers):
       result.add fname
 
-proc newNotifier(): Notifier =
+proc newNotifier(enabled: bool): Notifier =
   ## Init desktop notifier
-  result.enabled = false
   when defined(linux):
+    result.enabled = enabled
     result.client = newNotifyClient("testrunner")
     result.client.set_app_name("testrunner")
 
@@ -247,11 +254,15 @@ proc run_tests(conf: Conf, old_summary: var Summary, notifier: Notifier) =
   testsuites.suites = @[]
 
   let test_fnames = conf.scan_test_files()
-  echo "Compiling $# test files..." % $test_fnames.len
+  if test_fnames.len == 1:
+    echo "Compiling test file..."
+  else:
+    echo "Compiling $# test files..." % $test_fnames.len
   var compiled_test_fnames: seq[string] = @[]
   for test_fn in test_fnames:
     let cmd = "nim c $# $#" % [conf.compiler_args, test_fn]
-    echo "Running: $#" % cmd
+    if conf.debug_mode:
+      echo "Running: $#" % cmd
     let exit_code = execCmd(cmd)
     if exit_code == 0:
       assert test_fn.endswith(".nim")
@@ -331,19 +342,47 @@ proc run_tests(conf: Conf, old_summary: var Summary, notifier: Notifier) =
   if conf.junit_output_filename != "":
     generate_junit_summary(conf.junit_output_filename, testsuites)
 
-proc main() =
-  let conf = parse_options_and_config_file()
-  var notifier = newNotifier()
-  var summary = Summary()
+# globals used for the fswatch callback
+var summary = Summary()
+let conf = parse_options_and_config_file()
+var notifier = newNotifier(conf.notify)
+var last_completion_time = getTime()
+
+proc run_tests() =
   run_tests(conf, summary, notifier)
+
+proc main() =
+  if conf.skipfirst == false:
+    run_tests()
   if conf.monitor_fn_matchers.len == 0:
     quit()
 
-  notifier.enabled = conf.notify
+  # File change monitoring
+  when not defined(nofswatch):
+    var data = ""
+    proc callback(eg: EventGroup) =
+      for e in eg:
+        if match_filename(e.path, conf.monitor_fn_matchers):
+          # Often the callback is called more than once for a change.
+          # e.time has milliseconds set to 0 - callbacks for different events can carry the same e.time
+          # Unfortunately this creates a "quiet" period up to a second after a run.
+          if last_completion_time < e.time:
+            if conf.debug_mode:
+              echo "Change detected in ", e.path
+            run_tests()
+            last_completion_time = getTime()
+            return
 
-  when defined(linux):
-    while monitor_files(conf.basedir, conf.monitor_fn_matchers, conf.debug_mode):
-      run_tests(conf, summary, notifier)
+    var monitor = newMonitor(latency=0.01)
+    monitor.add_event_type_filter({Created})
+    monitor.add_event_type_filter({Updated})
+    monitor.add_event_type_filter({AttributeModified})
+    monitor.add(conf.basedir)
+    monitor.set_recursive(true)
+    monitor.setCallback(callback)
+    if conf.debug_mode:
+      echo "Monitoring dir: ", conf.basedir
+    monitor.start()
 
 when isMainModule:
   main()
