@@ -52,12 +52,25 @@ Testrunner will also parse .testrunner.conf if available, unless
 a different config file is specified.
 
 
-=== Install
+=== Install testrunner:
 
 [source,bash]
 ----
 nimble install testrunner
+----
+
+Install fswatch library (OS-dependent) or build with testrunner using -d:nofswatch to disable fswatch support
+
+[source,bash]
+----
+# Debian and derivatives
 sudo apt-get install libfswatch11
+
+# MacPorts
+port install fswatch
+
+# Homebrew
+brew install fswatch
 ----
 
 === Output examples
