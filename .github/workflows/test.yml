@@ -1,0 +1,19 @@
+name: Test
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Add repository
+      run: |
+        echo "deb [trusted=yes] http://httpredir.debian.org/debian/ buster-backports main" | sudo tee /etc/apt/sources.list.d/backports.list
+        sudo apt-get update -y
+    - name: Install Nim
+      run: sudo apt-get install -y nim
+    - name: Install deps
+      run: sudo apt-get install -y libfswatch9
+    - name: Build project
+      run: |
+        nim c testrunner.nim
+        ./testrunner -d tests/test_glob.nim -- -p:.
